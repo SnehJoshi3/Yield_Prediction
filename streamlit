@@ -1,0 +1,74 @@
+import streamlit as st
+import pandas as pd
+import numpy as np
+from sklearn.linear_model import LinearRegression
+from sklearn.model_selection import train_test_split
+from sklearn.metrics import mean_squared_error, r2_score
+
+# --- Title ---
+st.set_page_config(page_title="Yield Prediction", layout="centered")
+st.title("🌾 Crop Yield Prediction App")
+st.caption("Developed as part of Internship at InfoLabz")
+
+# --- Load Dataset ---
+@st.cache_data
+def load_data():
+    return pd.read_csv("Crop_Yield.csv")
+
+df = load_data()
+df_encoded = pd.get_dummies(df, drop_first=True)
+
+# --- Split data ---
+X = df_encoded.drop("predicted_yield_quintal_per_hectare", axis=1)
+y = df["predicted_yield_quintal_per_hectare"]
+
+X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
+
+# --- Train model ---
+model = LinearRegression()
+model.fit(X_train, y_train)
+
+# --- Sidebar Inputs ---
+st.sidebar.header("Input Parameters")
+
+crop_type = st.sidebar.selectbox("Crop Type", df["crop_type"].unique())
+soil_type = st.sidebar.selectbox("Soil Type", df["soil_type"].unique())
+irrigation_type = st.sidebar.selectbox("Irrigation Type", df["irrigation_type"].unique())
+
+rainfall = st.sidebar.slider("Rainfall (mm)", 0.0, 1500.0, 600.0)
+temperature = st.sidebar.slider("Temperature (°C)", 0.0, 50.0, 25.0)
+humidity = st.sidebar.slider("Humidity (%)", 0.0, 100.0, 60.0)
+soil_ph = st.sidebar.slider("Soil pH", 3.5, 9.0, 6.5)
+fertilizer = st.sidebar.slider("Fertilizer Used (kg/ha)", 0.0, 300.0, 120.0)
+pesticide = st.sidebar.slider("Pesticide Used (kg/ha)", 0.0, 10.0, 2.0)
+seed_quality = st.sidebar.slider("Seed Quality Index", 0.0, 10.0, 5.0)
+ndvi_index = st.sidebar.slider("Satellite NDVI Index", 0.0, 1.0, 0.5)
+
+# --- Prediction ---
+def make_prediction():
+    input_df = pd.DataFrame([{
+        "crop_type": crop_type,
+        "soil_type": soil_type,
+        "irrigation_type": irrigation_type,
+        "rainfall_mm": rainfall,
+        "temperature_c": temperature,
+        "humidity_percent": humidity,
+        "soil_ph": soil_ph,
+        "fertilizer_used_kg_per_hectare": fertilizer,
+        "pesticide_used_kg_per_hectare": pesticide,
+        "seed_quality_index": seed_quality,
+        "satellite_ndvi_index": ndvi_index
+    }])
+    input_encoded = pd.get_dummies(input_df)
+    input_encoded = input_encoded.reindex(columns=X.columns, fill_value=0)
+    return model.predict(input_encoded)[0]
+
+if st.button("Predict Yield"):
+    result = make_prediction()
+    st.success(f"🌿 Estimated Yield: **{result:.2f} quintals/hectare**")
+
+
+with st.expander("📊 Model Performance on Test Set"):
+    y_pred = model.predict(X_test)
+    st.write(f"**Mean Squared Error:** {mean_squared_error(y_test, y_pred):.2f}")
+    st.write(f"**R² Score:** {r2_score(y_test, y_pred):.2f}")
